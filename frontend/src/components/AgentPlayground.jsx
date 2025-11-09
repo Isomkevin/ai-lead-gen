@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ArrowLeft, Download, FileJson, FileText, Zap } from 'lucide-react'
+import { ArrowLeft, Download, FileJson, FileText, Zap, X } from 'lucide-react'
 import ProcessCanvas from './ProcessCanvas'
 import ResultsPanel from './ResultsPanel'
 import axios from 'axios'
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api'
 
 export default function AgentPlayground({ config, onReset }) {
   const [currentStage, setCurrentStage] = useState(0)
@@ -99,7 +100,8 @@ export default function AgentPlayground({ config, onReset }) {
       
       // Always use sync endpoint for reliability in production
       // (Async endpoint requires Redis in production with multiple workers)
-      const response = await axios.post('/api/v1/leads/generate', config, {
+      const apiUrl = API_BASE_URL + API_ENDPOINTS.generateLeads
+      const response = await axios.post(apiUrl, config, {
         timeout: 300000  // 5 minutes timeout for large requests
       })
       

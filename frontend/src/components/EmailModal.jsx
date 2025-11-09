@@ -8,6 +8,7 @@ import {
 import ReactQuill from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 import axios from 'axios'
+import { API_BASE_URL, API_ENDPOINTS } from '../config/api'
 
 export default function EmailModal({ company, onClose }) {
   const [fromEmail, setFromEmail] = useState('')
@@ -119,7 +120,8 @@ export default function EmailModal({ company, onClose }) {
         })) : null
       }
 
-      const response = await axios.post('/api/v1/email/send', payload)
+      const apiUrl = API_BASE_URL + API_ENDPOINTS.sendEmail
+      const response = await axios.post(apiUrl, payload)
 
       if (response.data.success) {
         const attachmentInfo = attachments.length > 0 
