@@ -60,10 +60,16 @@ class SendGridEmailSender:
             
             response = self.client.send(message)
             print(f"✅ SendGrid: Email sent to {to_email} from {from_email}")
+            if cc_email:
+                print(f"   CC sent to: {cc_email}")
             return True
         except Exception as e:
-            print(f"❌ SendGrid failed: {str(e)}")
-            return False
+            error_msg = f"SendGrid failed: {str(e)}"
+            print(f"❌ {error_msg}")
+            # Log more details for debugging
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
+            raise Exception(error_msg)  # Raise instead of returning False
 
 
 class YagmailEmailSender:
@@ -75,7 +81,43 @@ class YagmailEmailSender:
         if not self.email_user or not self.email_password:
             raise ValueError("Please set EMAIL_USER and EMAIL_PASSWORD in .env file")
         
-        self.yag = yagmail.SMTP(self.email_user, self.email_password)
+        # Get SMTP settings from environment or use defaults
+        smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
+        smtp_port = int(os.getenv('SMTP_PORT', '465'))  # Default to 465 (SSL)
+        
+        # Configure based on port
+        if smtp_port == 465:
+            # Use SSL/TLS on port 465 (recommended for Render.com)
+            self.yag = yagmail.SMTP(
+                user=self.email_user,
+                password=self.email_password,
+                host=smtp_server,
+                port=465,
+                smtp_starttls=False,
+                smtp_ssl=True
+            )
+            print(f"📧 Yagmail configured: {smtp_server}:465 (SSL)")
+        elif smtp_port == 587:
+            # Use STARTTLS on port 587 (works locally, may be blocked on cloud)
+            self.yag = yagmail.SMTP(
+                user=self.email_user,
+                password=self.email_password,
+                host=smtp_server,
+                port=587,
+                smtp_starttls=True,
+                smtp_ssl=False
+            )
+            print(f"⚠️  Yagmail configured: {smtp_server}:587 (STARTTLS)")
+            print(f"⚠️  Note: Port 587 may be blocked on cloud providers like Render.com")
+        else:
+            # Custom port
+            self.yag = yagmail.SMTP(
+                user=self.email_user,
+                password=self.email_password,
+                host=smtp_server,
+                port=smtp_port
+            )
+            print(f"📧 Yagmail configured: {smtp_server}:{smtp_port}")
     
     def send_email(
         self,
@@ -126,8 +168,12 @@ class YagmailEmailSender:
             print(f"   Note: Replies will go to {from_email}")
             return True
         except Exception as e:
-            print(f"❌ Yagmail failed: {str(e)}")
-            return False
+            error_msg = f"Yagmail failed: {str(e)}"
+            print(f"❌ {error_msg}")
+            # Log more details for debugging
+            import traceback
+            print(f"Full traceback: {traceback.format_exc()}")
+            raise Exception(error_msg)  # Raise instead of returning False
 
 
 class EmailSender:
@@ -191,6 +237,7 @@ class EmailSender:
             dict: {success: bool, method: str, message: str}
         """
         try:
+            # This will now raise an exception if it fails
             success = self.sender.send_email(
                 from_email=from_email,
                 to_email=to_email,
@@ -200,12 +247,13 @@ class EmailSender:
                 cc_email=cc_email
             )
             
+            # If we get here, it succeeded
             message = f"Email sent successfully via {self.method}"
             if cc_email:
                 message += f" (copy sent to {cc_email})"
             
             return {
-                "success": success,
+                "success": True,
                 "method": self.method,
                 "message": message,
                 "from": from_email,
@@ -213,10 +261,11 @@ class EmailSender:
                 "cc": cc_email
             }
         except Exception as e:
+            # Now we have the actual error message
             return {
                 "success": False,
                 "method": self.method,
-                "message": f"Failed to send email: {str(e)}",
+                "message": str(e),  # Use the actual error message
                 "from": from_email,
                 "to": to_email,
                 "cc": cc_email

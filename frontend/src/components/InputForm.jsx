@@ -105,7 +105,23 @@ export default function InputForm({ onStart, onBack }) {
               <input
                 type="number"
                 value={formData.number}
-                onChange={(e) => setFormData({ ...formData, number: parseInt(e.target.value) })}
+                onChange={(e) => {
+                  const value = e.target.value
+                  if (value === '') {
+                    setFormData({ ...formData, number: '' })
+                  } else {
+                    const num = parseInt(value)
+                    if (!isNaN(num)) {
+                      setFormData({ ...formData, number: Math.max(1, Math.min(50, num)) })
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  // Ensure valid number on blur
+                  if (e.target.value === '' || isNaN(parseInt(e.target.value))) {
+                    setFormData({ ...formData, number: 10 })
+                  }
+                }}
                 min="1"
                 max="50"
                 className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors text-lg"
