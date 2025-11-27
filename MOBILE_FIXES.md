@@ -271,7 +271,7 @@ After:
 ## 🔍 Quick Test
 
 ```
-1. Open on mobile: https://lead-gen-rust.vercel.app
+1. Open on mobile: https://lead-magnet-livid.vercel.app
 2. Generate leads
 3. Swipe nodes left/right
 4. Results panel opens

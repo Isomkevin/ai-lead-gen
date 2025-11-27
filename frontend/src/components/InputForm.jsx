@@ -3,17 +3,22 @@ import { motion } from 'framer-motion'
 import { Sparkles, Building2, Globe, Hash, Zap, ArrowLeft } from 'lucide-react'
 
 export default function InputForm({ onStart, onBack }) {
+  const [inputMode, setInputMode] = useState('industry') // 'industry' or 'website'
   const [formData, setFormData] = useState({
     industry: '',
+    website_url: '',
     number: 10,
     country: 'USA',
-    enable_web_scraping: true
+    enable_web_scraping: true,
+    enable_business_intelligence: true
   })
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (formData.industry.trim()) {
-      onStart(formData)
+    if (inputMode === 'website' && formData.website_url.trim()) {
+      onStart({ ...formData, mode: 'website' })
+    } else if (inputMode === 'industry' && formData.industry.trim()) {
+      onStart({ ...formData, mode: 'industry' })
     }
   }
 
@@ -72,6 +77,34 @@ export default function InputForm({ onStart, onBack }) {
           </motion.p>
         </div>
 
+        {/* Input Mode Toggle */}
+        <div className="flex justify-center mb-8">
+          <div className="bg-white rounded-xl p-1 shadow-lg border border-gray-200 inline-flex">
+            <button
+              type="button"
+              onClick={() => setInputMode('industry')}
+              className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                inputMode === 'industry'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              By Industry
+            </button>
+            <button
+              type="button"
+              onClick={() => setInputMode('website')}
+              className={`px-6 py-2 rounded-lg font-medium transition-all ${
+                inputMode === 'website'
+                  ? 'bg-primary-600 text-white shadow-md'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              From Website
+            </button>
+          </div>
+        </div>
+
         {/* Form Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -80,21 +113,42 @@ export default function InputForm({ onStart, onBack }) {
           className="bg-white rounded-3xl shadow-2xl p-8 md:p-12"
         >
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Industry Input */}
-            <div>
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
-                <Building2 className="w-5 h-5 mr-2 text-primary-500" />
-                Target Industry
-              </label>
-              <input
-                type="text"
-                value={formData.industry}
-                onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
-                placeholder="e.g., health insurance, technology, finance"
-                className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors text-lg"
-                required
-              />
-            </div>
+            {inputMode === 'website' ? (
+              /* Website URL Input */
+              <div>
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <Globe className="w-5 h-5 mr-2 text-primary-500" />
+                  Your Business Website URL
+                </label>
+                <input
+                  type="url"
+                  value={formData.website_url}
+                  onChange={(e) => setFormData({ ...formData, website_url: e.target.value })}
+                  placeholder="https://yourcompany.com"
+                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors text-lg"
+                  required
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  💡 We'll analyze your website to understand your business and generate highly relevant leads
+                </p>
+              </div>
+            ) : (
+              /* Industry Input */
+              <div>
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-3">
+                  <Building2 className="w-5 h-5 mr-2 text-primary-500" />
+                  Target Industry
+                </label>
+                <input
+                  type="text"
+                  value={formData.industry}
+                  onChange={(e) => setFormData({ ...formData, industry: e.target.value })}
+                  placeholder="e.g., health insurance, technology, finance"
+                  className="w-full px-6 py-4 border-2 border-gray-200 rounded-xl focus:border-primary-500 focus:outline-none transition-colors text-lg"
+                  required
+                />
+              </div>
+            )}
 
             {/* Number of Companies */}
             <div>
@@ -277,6 +331,27 @@ export default function InputForm({ onStart, onBack }) {
                   </div>
                   <p className="text-sm text-gray-600 mt-1">
                     Extract real-time contact emails and social media (takes longer but more accurate)
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {/* Business Intelligence Toggle */}
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={formData.enable_business_intelligence}
+                  onChange={(e) => setFormData({ ...formData, enable_business_intelligence: e.target.checked })}
+                  className="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                />
+                <div className="ml-3">
+                  <div className="flex items-center font-semibold text-gray-900">
+                    <Zap className="w-5 h-5 mr-2 text-purple-500" />
+                    Business Intelligence Analysis
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Analyze websites and score leads based on quality (recommended for best results)
                   </p>
                 </div>
               </label>

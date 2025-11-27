@@ -31,6 +31,12 @@ logger = logging.getLogger(__name__)
 from generate_health_insurance import GeminiClient
 from web_scraper import scrape_company_data
 from email_sender import get_email_sender
+from business_intelligence import BusinessIntelligenceAnalyzer
+from avatar_service import get_avatar_service
+from context_aware_lead_generator import generate_leads_from_website
+from africastalking_service import get_africastalking_service
+from fastapi.responses import Response
+import base64
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -44,7 +50,7 @@ app = FastAPI(
 # Configure CORS for production
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS", 
-    "https://leadgenerator.meallensai.com,https://lead-gen-aes4.onrender.com,https://lead-gen-rust.vercel.app,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
+    "https://leadgenerator.meallensai.com,https://lead-gen-aes4.onrender.com,https://lead-magnet-livid.vercel.app,http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000"
 ).split(",")
 
 app.add_middleware(
@@ -178,8 +184,8 @@ def generate_leads_sync(industry: str, number: int, country: str, enable_scrapin
         
         # Enhance with web scraping if enabled
         if enable_scraping:
-            logger.info("Enhancing results with web scraping...")
-            result = scrape_company_data(result)
+            logger.info("Enhancing results with web scraping (parallel)...")
+            result = scrape_company_data_parallel(result, max_workers=3)
         
         logger.info(f"Successfully generated {len(result.get('companies', []))} leads")
         return result
@@ -617,6 +623,664 @@ async def generate_email_content(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ========== Business Intelligence Endpoints ==========
+
+@app.post("/api/v1/leads/analyze", tags=["Leads"])
+async def analyze_leads_with_intelligence(request: LeadRequest):
+    """
+    Generate leads and analyze business intelligence from websites.
+    Returns leads with scoring and business intelligence data.
+    
+    This endpoint:
+    - Generates leads using AI
+    - Scrapes company websites for business intelligence
+    - Scores each lead based on multiple criteria
+    - Returns leads sorted by score (highest first)
+    """
+    try:
+        logger.info(f"Starting lead analysis: industry={request.industry}, number={request.number}, country={request.country}")
+        
+        # Generate leads first
+        result = generate_leads_sync(
+            industry=request.industry,
+            number=request.number,
+            country=request.country,
+            enable_scraping=request.enable_web_scraping
+        )
+        
+        # Analyze business intelligence for each company
+        analyzer = BusinessIntelligenceAnalyzer()
+        companies = result.get('companies', [])
+        
+        logger.info(f"Analyzing business intelligence for {len(companies)} companies...")
+        
+        for company in companies:
+            website_url = company.get('website_url')
+            
+            if website_url:
+                try:
+                    # Extract business intelligence
+                    business_info = analyzer.extract_business_info(website_url)
+                    
+                    # Score the lead
+                    lead_scoring = analyzer.score_lead(company, business_info)
+                    
+                    # Add to company data
+                    company['business_intelligence'] = business_info
+                    company['lead_score'] = lead_scoring['lead_score']
+                    company['quality_tier'] = lead_scoring['quality_tier']
+                    company['recommendation'] = lead_scoring['recommendation']
+                    company['scoring_breakdown'] = lead_scoring['scoring_breakdown']
+                    
+                    # Small delay to be respectful (optimized)
+                    import time
+                    time.sleep(0.5)  # Reduced delay for faster processing
+                    
+                except Exception as e:
+                    logger.warning(f"Error analyzing {website_url}: {str(e)}")
+                    # Add default scoring if analysis fails
+                    company['lead_score'] = 0
+                    company['quality_tier'] = 'Unknown'
+                    company['recommendation'] = 'Analysis unavailable'
+                    company['business_intelligence'] = {'error': str(e)}
+            else:
+                # No website URL - default scoring
+                company['lead_score'] = 0
+                company['quality_tier'] = 'Unknown'
+                company['recommendation'] = 'No website URL available'
+                company['business_intelligence'] = {}
+        
+        # Sort by lead score (highest first)
+        companies.sort(key=lambda x: x.get('lead_score', 0), reverse=True)
+        result['companies'] = companies
+        
+        # Calculate statistics
+        premium_count = sum(1 for c in companies if c.get('quality_tier') == 'Premium')
+        high_count = sum(1 for c in companies if c.get('quality_tier') == 'High')
+        avg_score = sum(c.get('lead_score', 0) for c in companies) / len(companies) if companies else 0
+        
+        logger.info(f"Analysis complete. Premium: {premium_count}, High: {high_count}, Avg Score: {avg_score:.1f}")
+        
+        return {
+            "success": True,
+            "message": f"Generated and analyzed {len(companies)} leads",
+            "data": result,
+            "metadata": {
+                "industry": request.industry,
+                "country": request.country,
+                "requested_count": request.number,
+                "actual_count": len(companies),
+                "web_scraping_enabled": request.enable_web_scraping,
+                "analysis_enabled": True,
+                "sorted_by_score": True,
+                "premium_leads": premium_count,
+                "high_leads": high_count,
+                "average_score": round(avg_score, 1),
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        logger.error(f"Error in lead analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+# ========== Context-Aware Lead Generation Endpoints ==========
+
+class WebsiteBasedLeadRequest(BaseModel):
+    """Request model for website-based lead generation"""
+    website_url: str = Field(
+        ...,
+        min_length=5,
+        max_length=500,
+        description="URL of user's business/product website to analyze",
+        example="https://example.com"
+    )
+    number: int = Field(
+        ...,
+        ge=1,
+        le=50,
+        description="Number of leads to generate (1-50)",
+        example=10
+    )
+    country: Optional[str] = Field(
+        default=None,
+        min_length=2,
+        max_length=100,
+        description="Optional country filter (if not provided, uses geographic focus from website)",
+        example="USA"
+    )
+    enable_web_scraping: bool = Field(
+        default=True,
+        description="Enable web scraping for enhanced contact data"
+    )
+    enable_business_intelligence: bool = Field(
+        default=True,
+        description="Enable business intelligence analysis on generated leads"
+    )
+    
+    @validator('website_url')
+    def validate_website_url(cls, v):
+        if not v or v.strip() == "":
+            raise ValueError('Website URL cannot be empty')
+        # Basic URL validation
+        url = v.strip()
+        if not (url.startswith('http://') or url.startswith('https://')):
+            url = 'https://' + url
+        return url
+
+
+@app.post("/api/v1/leads/generate-from-website", tags=["Leads"])
+async def generate_leads_from_user_website(request: WebsiteBasedLeadRequest):
+    """
+    Generate contextually relevant leads based on user's website analysis.
+    
+    This endpoint:
+    1. Analyzes the user's website to extract business insights
+    2. Generates tailored leads based on extracted insights
+    3. Optionally enhances leads with web scraping and BI analysis
+    
+    **How it works:**
+    - Analyzes website content (text, structure, metadata)
+    - Extracts industry, target audience, value proposition, offerings
+    - Generates leads that match the user's business profile
+    - Scores leads for relevance and quality
+    
+    **Example:**
+    If your website is a SaaS platform for healthcare, it will generate leads
+    for healthcare companies that could use your platform.
+    """
+    try:
+        logger.info(f"Generating leads from website: {request.website_url}")
+        
+        # Step 1: Generate contextual leads from website
+        result = generate_leads_from_website(
+            website_url=request.website_url,
+            number=request.number,
+            country=request.country
+        )
+        
+        if not result.get('success'):
+            raise HTTPException(
+                status_code=500,
+                detail=result.get('error', 'Failed to generate leads from website')
+            )
+        
+        leads = result.get('leads', [])
+        insights = result.get('insights', {})
+        website_analysis = result.get('website_analysis', {})
+        
+        # Step 2: Optionally enhance with web scraping
+        if request.enable_web_scraping:
+            logger.info("Enhancing leads with web scraping...")
+            from web_scraper import scrape_company_data_parallel
+            leads_data = {'companies': leads}
+            # Use parallel scraping for faster performance
+            enhanced_data = scrape_company_data_parallel(leads_data, max_workers=3)
+            leads = enhanced_data.get('companies', leads)
+        
+        # Step 3: Optionally add business intelligence analysis
+        if request.enable_business_intelligence:
+            logger.info("Adding business intelligence analysis...")
+            analyzer = BusinessIntelligenceAnalyzer()
+            
+            for lead in leads:
+                website_url = lead.get('website_url')
+                if website_url:
+                    try:
+                        business_info = analyzer.extract_business_info(website_url)
+                        lead_scoring = analyzer.score_lead(lead, business_info)
+                        
+                        lead['business_intelligence'] = business_info
+                        lead['lead_score'] = lead_scoring['lead_score']
+                        lead['quality_tier'] = lead_scoring['quality_tier']
+                        lead['recommendation'] = lead_scoring['recommendation']
+                        lead['scoring_breakdown'] = lead_scoring['scoring_breakdown']
+                        
+                        # Combine context relevance with BI score
+                        context_score = lead.get('context_relevance_score', 50)
+                        bi_score = lead.get('lead_score', 0)
+                        lead['combined_score'] = round((context_score * 0.4) + (bi_score * 0.6))
+                        
+                        import time
+                        time.sleep(0.5)  # Reduced delay for faster processing
+                    except Exception as e:
+                        logger.warning(f"Error analyzing {website_url}: {str(e)}")
+        
+        # Sort by combined score or context relevance
+        if request.enable_business_intelligence:
+            leads.sort(key=lambda x: x.get('combined_score', x.get('context_relevance_score', 0)), reverse=True)
+        else:
+            leads.sort(key=lambda x: x.get('context_relevance_score', 0), reverse=True)
+        
+        # Calculate statistics
+        premium_count = sum(1 for l in leads if l.get('quality_tier') == 'Premium')
+        high_count = sum(1 for l in leads if l.get('quality_tier') == 'High')
+        avg_relevance = sum(l.get('context_relevance_score', 0) for l in leads) / len(leads) if leads else 0
+        
+        logger.info(f"Generated {len(leads)} contextual leads from website analysis")
+        
+        return {
+            "success": True,
+            "message": f"Generated {len(leads)} contextually relevant leads from website analysis",
+            "data": {
+                "companies": leads
+            },
+            "website_analysis": website_analysis,
+            "insights": insights,
+            "metadata": {
+                "user_website": request.website_url,
+                "requested_count": request.number,
+                "actual_count": len(leads),
+                "web_scraping_enabled": request.enable_web_scraping,
+                "business_intelligence_enabled": request.enable_business_intelligence,
+                "average_relevance_score": round(avg_relevance, 1),
+                "premium_leads": premium_count if request.enable_business_intelligence else 0,
+                "high_leads": high_count if request.enable_business_intelligence else 0,
+                "generated_at": datetime.utcnow().isoformat()
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating leads from website: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate leads from website: {str(e)}"
+        )
+
+
+# ========== Africa's Talking (SMS/Voice/Airtime) Endpoints ==========
+
+class SMSRequest(BaseModel):
+    """Request model for sending SMS"""
+    phone_numbers: List[str] = Field(
+        ...,
+        description="List of phone numbers with country code (e.g., +254712345678)",
+        example=["+254712345678", "+254798765432"]
+    )
+    message: str = Field(
+        ...,
+        min_length=1,
+        max_length=1600,
+        description="SMS message text (max 1600 characters)",
+        example="Your leads are ready! Check your dashboard."
+    )
+    sender_id: Optional[str] = Field(
+        default=None,
+        description="Optional sender ID (must be approved in Africa's Talking)"
+    )
+
+
+class LeadNotificationSMSRequest(BaseModel):
+    """Request for sending lead notification SMS"""
+    phone: str = Field(..., description="Phone number with country code")
+    lead_summary: Dict = Field(..., description="Lead generation summary")
+
+
+@app.post("/api/v1/sms/send", tags=["SMS"])
+async def send_sms(request: SMSRequest):
+    """
+    Send SMS via Africa's Talking.
+    
+    **Features:**
+    - Send SMS to multiple recipients
+    - Automatic phone number formatting
+    - Cost tracking
+    - Delivery status
+    
+    **Phone Number Format:**
+    - Include country code: +254712345678 (Kenya)
+    - Or use local format: 0712345678 (auto-converted)
+    """
+    try:
+        at_service = get_africastalking_service()
+        if not at_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Africa's Talking not configured. Set AFRICASTALKING_USERNAME and AFRICASTALKING_API_KEY in .env"
+            )
+        
+        result = at_service.send_sms(
+            phone_numbers=request.phone_numbers,
+            message=request.message,
+            sender_id=request.sender_id
+        )
+        
+        if result.get('success'):
+            return {
+                "success": True,
+                "message": "SMS sent successfully",
+                "recipients_count": len(result.get('recipients', [])),
+                "cost": result.get('cost', '0'),
+                "recipients": result.get('recipients', [])
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get('error', 'Failed to send SMS')
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending SMS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send SMS: {str(e)}")
+
+
+@app.post("/api/v1/sms/send-lead-notification", tags=["SMS"])
+async def send_lead_notification_sms(request: LeadNotificationSMSRequest):
+    """
+    Send SMS notification when leads are generated.
+    
+    Automatically formats a notification message with:
+    - Total leads generated
+    - Premium/High quality counts
+    - Dashboard link
+    """
+    try:
+        at_service = get_africastalking_service()
+        if not at_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Africa's Talking not configured"
+            )
+        
+        result = at_service.send_lead_notification_sms(
+            phone=request.phone,
+            lead_summary=request.lead_summary
+        )
+        
+        if result.get('success'):
+            return {
+                "success": True,
+                "message": "Lead notification SMS sent",
+                "data": result
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get('error', 'Failed to send notification')
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending lead notification: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class VoiceCallRequest(BaseModel):
+    """Request for initiating voice call"""
+    phone_number: str = Field(..., description="Phone number with country code")
+    message: str = Field(..., description="Text message to convert to speech")
+
+
+@app.post("/api/v1/voice/call", tags=["Voice"])
+async def initiate_voice_call(request: VoiceCallRequest):
+    """
+    Initiate a voice call with text-to-speech via Africa's Talking.
+    
+    **Use Cases:**
+    - Lead verification calls
+    - Automated follow-ups
+    - Voice notifications
+    - Lead qualification surveys
+    """
+    try:
+        at_service = get_africastalking_service()
+        if not at_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Africa's Talking not configured"
+            )
+        
+        result = at_service.initiate_voice_call(
+            phone_number=request.phone_number,
+            message=request.message
+        )
+        
+        if result.get('success'):
+            return {
+                "success": True,
+                "message": "Voice call initiated",
+                "data": result.get('data', {})
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get('error', 'Failed to initiate call')
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error initiating voice call: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class AirtimeRequest(BaseModel):
+    """Request for sending airtime"""
+    phone_number: str = Field(..., description="Phone number with country code")
+    amount: str = Field(..., description="Amount to send (e.g., '100')")
+    currency: str = Field(default="KES", description="Currency code (KES, UGX, TZS, etc.)")
+
+
+@app.post("/api/v1/airtime/send", tags=["Airtime"])
+async def send_airtime(request: AirtimeRequest):
+    """
+    Send airtime to a phone number via Africa's Talking.
+    
+    **Use Cases:**
+    - Reward users for successful lead conversions
+    - Incentivize referrals
+    - Thank you rewards
+    - Lead generation incentives
+    
+    **Supported Currencies:**
+    - KES (Kenya Shilling)
+    - UGX (Uganda Shilling)
+    - TZS (Tanzania Shilling)
+    - And more...
+    """
+    try:
+        at_service = get_africastalking_service()
+        if not at_service:
+            raise HTTPException(
+                status_code=503,
+                detail="Africa's Talking not configured"
+            )
+        
+        result = at_service.send_airtime(
+            phone_number=request.phone_number,
+            amount=request.amount,
+            currency=request.currency
+        )
+        
+        if result.get('success'):
+            return {
+                "success": True,
+                "message": "Airtime sent successfully",
+                "data": result.get('data', {})
+            }
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=result.get('error', 'Failed to send airtime')
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending airtime: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Avatar/Voice Endpoints ==========
+
+class AvatarRequest(BaseModel):
+    """Request for avatar voice generation"""
+    company_name: str = Field(..., description="Company name for personalization")
+    message_type: str = Field(
+        default="introduction", 
+        description="Type: introduction, follow_up, summary",
+        example="introduction"
+    )
+    custom_message: Optional[str] = Field(
+        default=None,
+        description="Custom message text (optional, overrides default)"
+    )
+    voice_id: Optional[str] = Field(
+        default="21m00Tcm4TlvDq8ikWAM",
+        description="ElevenLabs voice ID"
+    )
+
+
+@app.post("/api/v1/avatar/generate-voice", tags=["Avatar"])
+async def generate_avatar_voice(request: AvatarRequest):
+    """
+    Generate AI avatar voice message for a lead.
+    
+    Returns MP3 audio file that can be:
+    - Downloaded
+    - Embedded in emails
+    - Sent via SMS (with link)
+    - Used in voice calls
+    """
+    try:
+        avatar_service = get_avatar_service()
+        
+        if not avatar_service:
+            raise HTTPException(
+                status_code=503,
+                detail="ElevenLabs API not configured. Please set ELEVENLABS_API_KEY environment variable."
+            )
+        
+        if request.message_type == "introduction":
+            # Create lead data structure
+            lead_data = {
+                "company_name": request.company_name,
+                "key_products_services": ""  # Can be enhanced later
+            }
+            
+            if request.custom_message:
+                # Generate voice from custom message
+                result = avatar_service.generate_custom_voice(
+                    request.custom_message,
+                    request.voice_id
+                )
+            else:
+                # Use default introduction
+                result = avatar_service.create_avatar_conversation(lead_data)
+            
+            if "error" in result:
+                raise HTTPException(status_code=500, detail=result["error"])
+            
+            # Decode base64 audio
+            audio_bytes = base64.b64decode(result['audio_base64'])
+            
+            # Return audio file
+            return Response(
+                content=audio_bytes,
+                media_type="audio/mpeg",
+                headers={
+                    "Content-Disposition": f"attachment; filename=voice_{request.company_name.replace(' ', '_')}.mp3"
+                }
+            )
+        
+        elif request.message_type == "summary":
+            # This would need leads data - for now return error
+            raise HTTPException(
+                status_code=400,
+                detail="Summary type requires leads data. Use /api/v1/avatar/generate-summary instead."
+            )
+        
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unknown message type: {request.message_type}"
+            )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating avatar voice: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/avatar/generate-summary", tags=["Avatar"])
+async def generate_lead_summary_voice(leads: List[Dict]):
+    """
+    Generate voice summary of lead generation results.
+    
+    Args:
+        leads: List of lead dictionaries with quality_tier and other data
+    """
+    try:
+        avatar_service = get_avatar_service()
+        
+        if not avatar_service:
+            raise HTTPException(
+                status_code=503,
+                detail="ElevenLabs API not configured"
+            )
+        
+        result = avatar_service.generate_lead_summary_voice(leads)
+        
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        
+        # Decode base64 audio
+        audio_bytes = base64.b64decode(result['audio_base64'])
+        
+        return Response(
+            content=audio_bytes,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=lead_summary.mp3"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating summary voice: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/avatar/voices", tags=["Avatar"])
+async def get_available_voices():
+    """
+    Get list of available ElevenLabs voices.
+    
+    Returns list of voice options that can be used for voice generation.
+    """
+    try:
+        avatar_service = get_avatar_service()
+        
+        if not avatar_service:
+            return {
+                "success": False,
+                "message": "ElevenLabs API not configured",
+                "voices": []
+            }
+        
+        voices = avatar_service.get_available_voices()
+        
+        return {
+            "success": True,
+            "voices": voices,
+            "count": len(voices)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching voices: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== Startup & Shutdown Events ==========
 
 @app.on_event("startup")
@@ -629,6 +1293,8 @@ async def startup_event():
     logger.info(f"CORS Allowed Origins: {ALLOWED_ORIGINS}")
     logger.info(f"Gemini API Key: {'✅ Configured' if os.getenv('GEMINI_API_KEY') else '❌ Missing'}")
     logger.info(f"Email Service: {'✅ Configured' if os.getenv('EMAIL_USER') or os.getenv('SENDGRID_API_KEY') else '⚠️ Not configured'}")
+    logger.info(f"ElevenLabs Avatar: {'✅ Configured' if os.getenv('ELEVENLABS_API_KEY') else '⚠️ Not configured'}")
+    logger.info(f"Africa's Talking: {'✅ Configured' if os.getenv('AFRICASTALKING_API_KEY') else '⚠️ Not configured'}")
     logger.info("="*60)
 
 
@@ -669,7 +1335,7 @@ if __name__ == "__main__":
         "api:app",
         host="0.0.0.0",
         port=int(os.getenv('PORT', 8000)),
-        reload=not is_production,  # Only reload in development
+        reload=True,  # Auto-reload in development (change to False for production)
         log_level="info" if is_production else "debug",
         access_log=is_production,
         workers=1  # For development; use multiple workers in Docker

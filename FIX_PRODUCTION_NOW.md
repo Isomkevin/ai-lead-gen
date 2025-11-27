@@ -5,7 +5,7 @@
 Your frontend is on Vercel but trying to call `/api` which doesn't exist there!
 
 ```
-Frontend (Vercel): ✅ https://lead-gen-rust.vercel.app
+Frontend (Vercel): ✅ https://lead-magnet-livid.vercel.app
 Backend (Railway): ❌ NOT DEPLOYED YET!
 ```
 
@@ -32,7 +32,7 @@ railway variables set GEMINI_API_KEY="your_NEW_key_here"
 railway variables set EMAIL_USER="your@gmail.com"
 railway variables set EMAIL_PASSWORD="your_app_password"
 railway variables set ENVIRONMENT="production"
-railway variables set ALLOWED_ORIGINS="https://lead-gen-rust.vercel.app"
+railway variables set ALLOWED_ORIGINS="https://lead-magnet-livid.vercel.app"
 
 # Get your backend URL
 railway domain
@@ -102,7 +102,7 @@ Should return:
 ```
 
 **2. Test frontend:**
-- Open: https://lead-gen-rust.vercel.app
+- Open: https://lead-magnet-livid.vercel.app
 - Open browser console (F12)
 - Generate leads
 - Should work now! ✅
@@ -121,7 +121,7 @@ curl https://YOUR-BACKEND-URL.railway.app/health
 ### Check 2: CORS Configured?
 Backend needs:
 ```bash
-ALLOWED_ORIGINS=https://lead-gen-rust.vercel.app
+ALLOWED_ORIGINS=https://lead-magnet-livid.vercel.app
 ```
 
 ### Check 3: Frontend Has API URL?
@@ -195,7 +195,7 @@ git push origin main
 # Backend (Railway)
 railway login && railway init && railway up
 railway variables set GEMINI_API_KEY="your_NEW_key"
-railway variables set ALLOWED_ORIGINS="https://lead-gen-rust.vercel.app"
+railway variables set ALLOWED_ORIGINS="https://lead-magnet-livid.vercel.app"
 BACKEND_URL=$(railway domain)
 
 # Frontend
@@ -242,7 +242,7 @@ curl https://YOUR-BACKEND-URL/health
 open https://YOUR-BACKEND-URL/docs
 
 # Frontend
-open https://lead-gen-rust.vercel.app
+open https://lead-magnet-livid.vercel.app
 ```
 
 **Check logs:**
@@ -268,7 +268,7 @@ cd /Users/danielsamuel/PycharmProjects/LEAD-generator
 railway init
 railway up
 railway variables set GEMINI_API_KEY="YOUR_NEW_KEY"
-railway variables set ALLOWED_ORIGINS="https://lead-gen-rust.vercel.app"
+railway variables set ALLOWED_ORIGINS="https://lead-magnet-livid.vercel.app"
 railway domain  # Copy this URL!
 ```
 

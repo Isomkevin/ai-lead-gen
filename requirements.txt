@@ -11,3 +11,6 @@ yagmail>=0.15.0
 # Note: Port 587 is blocked on Render.com, using port 465 instead
 # sendgrid>=6.11.0  # Alternative: SendGrid uses HTTPS (uncomment if yagmail doesn't work)
 
+# Business Intelligence & Avatar Services
+# Note: ElevenLabs is accessed via REST API (requests), no separate package needed
+

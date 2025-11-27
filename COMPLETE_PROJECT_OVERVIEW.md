@@ -275,7 +275,7 @@ Frequency: As needed
 
 ### **Current Setup:**
 ```
-Frontend: https://lead-gen-rust.vercel.app (Vercel)
+Frontend: https://lead-magnet-livid.vercel.app (Vercel)
 Backend:  https://lead-gen-aes4.onrender.com (Render)
 Status:   ✅ Live and working
 ```

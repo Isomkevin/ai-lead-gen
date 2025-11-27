@@ -44,7 +44,7 @@ railway variables set GEMINI_API_KEY="your_NEW_key_here"
 railway variables set EMAIL_USER="your@gmail.com"
 railway variables set EMAIL_PASSWORD="your_app_password"
 railway variables set ENVIRONMENT="production"
-railway variables set ALLOWED_ORIGINS="https://lead-gen-rust.vercel.app"
+railway variables set ALLOWED_ORIGINS="https://lead-magnet-livid.vercel.app"
 ```
 
 **5. Get your API URL:**
@@ -74,7 +74,7 @@ git push origin main
   - `EMAIL_USER`
   - `EMAIL_PASSWORD`
   - `ENVIRONMENT=production`
-  - `ALLOWED_ORIGINS=https://lead-gen-rust.vercel.app`
+  - `ALLOWED_ORIGINS=https://lead-magnet-livid.vercel.app`
 - Click "Create Web Service"
 
 **3. Get URL:**
@@ -126,7 +126,7 @@ git push origin main
 User Browser
     ↓
 Vercel (Frontend)
-https://lead-gen-rust.vercel.app
+https://lead-magnet-livid.vercel.app
     ↓
 Railway/Render (Backend API)
 https://your-app.railway.app
@@ -139,15 +139,17 @@ Gemini AI + Web Scraping + Email
 ## ⚙️ Configuration Files
 
 ### Backend `.env`:
+
 ```bash
 GEMINI_API_KEY=your_NEW_key
 EMAIL_USER=your@gmail.com
 EMAIL_PASSWORD=app_password
 ENVIRONMENT=production
-ALLOWED_ORIGINS=https://lead-gen-rust.vercel.app
+ALLOWED_ORIGINS=https://lead-magnet-livid.vercel.app
 ```
 
 ### Frontend `.env.production`:
+
 ```bash
 VITE_API_URL=https://your-backend.railway.app
 ```
@@ -157,13 +159,14 @@ VITE_API_URL=https://your-backend.railway.app
 ## 🔧 Quick Fix Commands
 
 ### **1. Deploy Backend:**
+
 ```bash
 # Railway
 railway login
 railway init
 railway up
 railway variables set GEMINI_API_KEY="your_key"
-railway variables set ALLOWED_ORIGINS="https://lead-gen-rust.vercel.app"
+railway variables set ALLOWED_ORIGINS="https://lead-magnet-livid.vercel.app"
 
 # Get URL
 railway domain
@@ -171,6 +174,7 @@ railway domain
 ```
 
 ### **2. Update Frontend:**
+
 ```bash
 cd frontend
 
@@ -204,6 +208,7 @@ Add in Vercel dashboard:
 ## 🐛 Common Issues
 
 ### "Still getting 404"
+
 ```
 Solution:
 1. Verify backend is deployed and running
@@ -214,14 +219,16 @@ Solution:
 ```
 
 ### "CORS error"
+
 ```
 Solution:
 1. Add Vercel URL to ALLOWED_ORIGINS on backend
-2. Example: ALLOWED_ORIGINS=https://lead-gen-rust.vercel.app
+2. Example: ALLOWED_ORIGINS=https://lead-magnet-livid.vercel.app
 3. Restart backend
 ```
 
 ### "API key leaked" error
+
 ```
 Solution:
 1. Get NEW API key: https://aistudio.google.com/app/apikey
@@ -237,7 +244,7 @@ After deployment you'll have:
 
 **Frontend (Vercel):**
 ```
-https://lead-gen-rust.vercel.app
+https://lead-magnet-livid.vercel.app
 ```
 
 **Backend (Railway):**
@@ -257,7 +264,7 @@ curl https://your-backend.railway.app/health
 ```
 
 **2. Test frontend:**
-- Open: https://lead-gen-rust.vercel.app
+- Open: https://lead-magnet-livid.vercel.app
 - Open browser console (F12)
 - Try generating leads
 - Should see API calls going to your backend URL
@@ -290,6 +297,7 @@ curl https://your-backend.railway.app/health
 - Backend: ❌ NOT deployed
 
 **Solution:**
+
 1. Deploy backend to Railway
 2. Update frontend with backend URL
 3. Redeploy frontend
@@ -304,7 +312,7 @@ railway login
 railway init
 railway up
 railway variables set GEMINI_API_KEY="your_NEW_key"
-railway variables set ALLOWED_ORIGINS="https://lead-gen-rust.vercel.app"
+railway variables set ALLOWED_ORIGINS="https://lead-magnet-livid.vercel.app"
 BACKEND_URL=$(railway domain)
 
 # 2. Update frontend
@@ -314,7 +322,7 @@ npm run build
 vercel --prod
 
 # 3. Test
-open https://lead-gen-rust.vercel.app
+open https://lead-magnet-livid.vercel.app
 ```
 
 ---

@@ -18,6 +18,8 @@ export default function AgentPlayground({ config, onReset }) {
   const [showResults, setShowResults] = useState(true)
   const [showFeedback, setShowFeedback] = useState(false)
   const exportMenuRef = useRef(null)
+  const hasStartedRef = useRef(false)
+  const generationKeyRef = useRef(null)
 
   const stages = [
     { id: 1, name: 'Initializing', description: 'Preparing AI agent' },
@@ -29,9 +31,65 @@ export default function AgentPlayground({ config, onReset }) {
 
   const activeStages = stages.filter(s => !s.skip)
 
+  // Generate a unique key for this generation session based on config
+  const getConfigKey = () => {
+    return JSON.stringify({
+      industry: config.industry,
+      website_url: config.website_url,
+      number: config.number,
+      country: config.country,
+      mode: config.mode,
+      enable_web_scraping: config.enable_web_scraping,
+      enable_business_intelligence: config.enable_business_intelligence
+    })
+  }
+
+  // Restore results from localStorage on mount
   useEffect(() => {
-    startGeneration()
+    const configKey = getConfigKey()
+    const storageKey = `leadGen_${btoa(configKey).slice(0, 20)}`
+    
+    try {
+      const savedData = localStorage.getItem(storageKey)
+      if (savedData) {
+        const { results: savedResults, config: savedConfig } = JSON.parse(savedData)
+        // Only restore if config matches
+        if (JSON.stringify(savedConfig) === configKey) {
+          setResults(savedResults)
+          setIsProcessing(false)
+          setShowResults(true)
+          hasStartedRef.current = true
+          generationKeyRef.current = storageKey
+          return // Don't start new generation if we have saved results
+        }
+      }
+    } catch (e) {
+      console.error('Failed to restore saved results:', e)
+    }
+
+    // Only start generation if it hasn't been started yet
+    if (!hasStartedRef.current) {
+      hasStartedRef.current = true
+      generationKeyRef.current = storageKey
+      startGeneration()
+    }
   }, [])
+
+  // Save results to localStorage whenever they change
+  useEffect(() => {
+    if (results && generationKeyRef.current) {
+      try {
+        const configKey = getConfigKey()
+        localStorage.setItem(generationKeyRef.current, JSON.stringify({
+          results,
+          config: configKey,
+          timestamp: Date.now()
+        }))
+      } catch (e) {
+        console.error('Failed to save results:', e)
+      }
+    }
+  }, [results])
 
   // Close export menu when clicking outside
   useEffect(() => {
@@ -89,9 +147,23 @@ export default function AgentPlayground({ config, onReset }) {
   }
 
   const startGeneration = async () => {
+    // Guard: prevent multiple simultaneous generations
+    if (isProcessing) {
+      return
+    }
+
     setIsProcessing(true)
     setCurrentStage(0)
     setError(null)
+
+    // Clear old results from localStorage
+    if (generationKeyRef.current) {
+      try {
+        localStorage.removeItem(generationKeyRef.current)
+      } catch (e) {
+        console.error('Failed to clear old results:', e)
+      }
+    }
 
     try {
       // Stage 1: Initialize
@@ -101,11 +173,30 @@ export default function AgentPlayground({ config, onReset }) {
       // Stage 2: AI Generation
       setCurrentStage(2)
 
-      // Always use sync endpoint for reliability in production
-      // (Async endpoint requires Redis in production with multiple workers)
-      const apiUrl = API_BASE_URL + API_ENDPOINTS.generateLeads
-      const response = await axios.post(apiUrl, config, {
-        timeout: 300000  // 5 minutes timeout for large requests
+      // Determine which endpoint to use
+      let apiUrl
+      let requestConfig = { ...config }
+      
+      if (config.mode === 'website') {
+        // Use website-based lead generation
+        apiUrl = API_BASE_URL + API_ENDPOINTS.generateFromWebsite
+        requestConfig = {
+          website_url: config.website_url,
+          number: config.number,
+          country: config.country || null,
+          enable_web_scraping: config.enable_web_scraping,
+          enable_business_intelligence: config.enable_business_intelligence
+        }
+      } else if (config.enable_business_intelligence) {
+        // Use analyze endpoint for BI
+        apiUrl = API_BASE_URL + API_ENDPOINTS.analyzeLeads
+      } else {
+        // Use regular generate endpoint
+        apiUrl = API_BASE_URL + API_ENDPOINTS.generateLeads
+      }
+      
+      const response = await axios.post(apiUrl, requestConfig, {
+        timeout: 600000  // 10 minutes timeout for website analysis and BI
       })
 
       // Move through stages
@@ -120,13 +211,36 @@ export default function AgentPlayground({ config, onReset }) {
       setResults(response.data)
       setShowResults(true)  // Auto-open results panel
       setIsProcessing(false)
+      // Results will be saved automatically by the useEffect above
 
     } catch (err) {
       console.error('Lead generation error:', err)
       const errorMessage = err.response?.data?.detail || err.message || 'Unknown error occurred'
       setError(errorMessage)
       setIsProcessing(false)
+      // Clear any partial state
+      if (generationKeyRef.current) {
+        try {
+          localStorage.removeItem(generationKeyRef.current)
+        } catch (e) {
+          console.error('Failed to clear error state:', e)
+        }
+      }
     }
+  }
+
+  // Handle reset - clear localStorage and reset refs
+  const handleReset = () => {
+    if (generationKeyRef.current) {
+      try {
+        localStorage.removeItem(generationKeyRef.current)
+      } catch (e) {
+        console.error('Failed to clear localStorage on reset:', e)
+      }
+    }
+    hasStartedRef.current = false
+    generationKeyRef.current = null
+    onReset()
   }
 
 
@@ -138,7 +252,7 @@ export default function AgentPlayground({ config, onReset }) {
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={onReset}
+            onClick={handleReset}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -333,7 +447,7 @@ export default function AgentPlayground({ config, onReset }) {
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={onReset}
+              onClick={handleReset}
               className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               Go Back

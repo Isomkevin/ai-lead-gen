@@ -74,7 +74,7 @@ echo "   Or set environment variable in Vercel dashboard:"
 echo "   VITE_API_URL = $BACKEND_URL"
 echo ""
 echo "3. Test your app:"
-echo "   Open: https://lead-gen-rust.vercel.app"
+echo "   Open: https://lead-magnet-livid.vercel.app"
 echo ""
 echo "=================================================="
 

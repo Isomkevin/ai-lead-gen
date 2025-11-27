@@ -4,7 +4,7 @@
 
 ### Step 1: Access the Platform
 
-**Production:** https://lead-gen-rust.vercel.app  
+**Production:** https://lead-magnet-livid.vercel.app  
 **Local:** http://localhost:3000
 
 ---
@@ -534,7 +534,7 @@ Explanation:
 ### **5-Minute First Campaign:**
 
 ```
-1. Open: https://lead-gen-rust.vercel.app
+1. Open: https://lead-magnet-livid.vercel.app
 2. Click: "Get Started Free"
 3. Enter: 
    - Industry: "technology"

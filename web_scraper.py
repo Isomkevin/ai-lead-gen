@@ -174,7 +174,7 @@ class WebScraper:
             print(f"  - Found {len(contact_urls)} potential contact pages")
             
             for contact_url in contact_urls:
-                time.sleep(1)  # Be respectful to the server
+                time.sleep(0.3)  # Reduced delay - still respectful but faster
                 self.visited_urls.add(contact_url)
                 
                 emails, social_media = self.scrape_page(contact_url)
@@ -256,10 +256,75 @@ def scrape_company_data(company_data: Dict) -> Dict:
                         company['social_media'] = {}
                     company['social_media'][platform] = url
             
-            # Small delay between companies
-            time.sleep(2)
+            # Small delay between companies (reduced for speed)
+            time.sleep(0.5)
     
     return company_data
+
+
+def scrape_company_data_parallel(company_data: Dict, max_workers: int = 3) -> Dict:
+    """
+    Enhanced version with parallel scraping for faster performance.
+    
+    Args:
+        company_data: Dictionary with companies list
+        max_workers: Number of parallel workers (default: 3)
+    
+    Returns:
+        Enhanced company data with scraped information
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    scraper = WebScraper()
+    companies = company_data.get('companies', [])
+    
+    def scrape_single_company(company):
+        """Scrape a single company's website"""
+        website_url = company.get('website_url')
+        if not website_url:
+            return company
+        
+        try:
+            scraped_data = scraper.scrape_website(website_url)
+            
+            # Store LLM email as separate field before overwriting
+            if company.get('contact_email'):
+                company['contact_email_llm'] = company['contact_email']
+            
+            # Update contact email with scraped data (prioritize scraped as it's real-time)
+            if scraped_data['contact_email']:
+                company['contact_email'] = scraped_data['contact_email']
+            
+            # Store all emails found
+            company['additional_emails'] = scraped_data['all_emails']
+            
+            # Keep LLM social media in original field
+            # Add scraped social media as verified/real-time data
+            if scraped_data['social_media']:
+                company['social_media_scraped'] = {}
+                for platform, url in scraped_data['social_media'].items():
+                    if url:
+                        company['social_media_scraped'][platform] = url
+            
+            # Also fill in missing LLM social media with scraped data
+            for platform, url in scraped_data['social_media'].items():
+                if url and (not company.get('social_media', {}).get(platform)):
+                    if 'social_media' not in company:
+                        company['social_media'] = {}
+                    company['social_media'][platform] = url
+            
+            return company
+        except Exception as e:
+            logger.warning(f"Error scraping {website_url}: {str(e)}")
+            return company
+    
+    # Use ThreadPoolExecutor for parallel scraping
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(scrape_single_company, companies))
+    
+    return {'companies': results}
 
 if __name__ == '__main__':
     # Example usage

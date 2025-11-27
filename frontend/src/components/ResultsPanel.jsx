@@ -1,7 +1,8 @@
 import { motion } from 'framer-motion'
-import { X, Download, Building2, Mail, Linkedin, Twitter, Facebook, Instagram, Youtube, Users, MapPin, DollarSign, TrendingUp, Send, FileText, FileJson } from 'lucide-react'
+import { X, Download, Building2, Mail, Linkedin, Twitter, Facebook, Instagram, Youtube, Users, MapPin, DollarSign, TrendingUp, Send, FileText, FileJson, Star, Award, BarChart3 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
 import EmailModal from './EmailModal'
+import AvatarAssistant from './AvatarAssistant'
 
 const socialIcons = {
   linkedin: Linkedin,
@@ -209,17 +210,33 @@ export default function ResultsPanel({ results, config, onClose }) {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-primary-50 rounded-xl p-3">
-            <div className="text-sm text-primary-600 font-medium">Total Leads</div>
-            <div className="text-2xl font-bold text-primary-700 mt-1">{companies.length}</div>
+            <div className="text-xs sm:text-sm text-primary-600 font-medium">Total Leads</div>
+            <div className="text-xl sm:text-2xl font-bold text-primary-700 mt-1">{companies.length}</div>
           </div>
           <div className="bg-green-50 rounded-xl p-3">
-            <div className="text-sm text-green-600 font-medium">With Emails</div>
-            <div className="text-2xl font-bold text-green-700 mt-1">
+            <div className="text-xs sm:text-sm text-green-600 font-medium">With Emails</div>
+            <div className="text-xl sm:text-2xl font-bold text-green-700 mt-1">
               {companies.filter(c => c.contact_email).length}
             </div>
           </div>
+          {results?.metadata?.premium_leads !== undefined && (
+            <>
+              <div className="bg-purple-50 rounded-xl p-3">
+                <div className="text-xs sm:text-sm text-purple-600 font-medium">Premium</div>
+                <div className="text-xl sm:text-2xl font-bold text-purple-700 mt-1">
+                  {results.metadata.premium_leads || companies.filter(c => c.quality_tier === 'Premium').length}
+                </div>
+              </div>
+              <div className="bg-blue-50 rounded-xl p-3">
+                <div className="text-xs sm:text-sm text-blue-600 font-medium">High Quality</div>
+                <div className="text-xl sm:text-2xl font-bold text-blue-700 mt-1">
+                  {results.metadata.high_leads || companies.filter(c => c.quality_tier === 'High').length}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -237,15 +254,38 @@ export default function ResultsPanel({ results, config, onClose }) {
           >
             {/* Company Header */}
             <div className="flex items-start justify-between mb-3">
-              <div className="flex-1">
-                <h3 className="font-bold text-gray-900 text-lg leading-tight">
-                  {company.company_name}
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-bold text-gray-900 text-base sm:text-lg leading-tight">
+                    {company.company_name}
+                  </h3>
+                  {company.lead_score !== undefined && (
+                    <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                      company.quality_tier === 'Premium' ? 'bg-purple-100 text-purple-700' :
+                      company.quality_tier === 'High' ? 'bg-blue-100 text-blue-700' :
+                      company.quality_tier === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      <Star className="w-3 h-3" />
+                      {company.lead_score}/100
+                    </div>
+                  )}
+                  {company.quality_tier && (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      company.quality_tier === 'Premium' ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white' :
+                      company.quality_tier === 'High' ? 'bg-blue-500 text-white' :
+                      company.quality_tier === 'Medium' ? 'bg-yellow-500 text-white' :
+                      'bg-gray-500 text-white'
+                    }`}>
+                      {company.quality_tier}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">
                   {company.headquarters_location}
                 </p>
               </div>
-              <Building2 className="w-8 h-8 text-primary-500 flex-shrink-0" />
+              <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-primary-500 flex-shrink-0" />
             </div>
 
             {/* Quick Info */}
@@ -310,6 +350,41 @@ export default function ResultsPanel({ results, config, onClose }) {
                 animate={{ height: 'auto', opacity: 1 }}
                 className="mt-4 pt-4 border-t border-gray-200 space-y-3"
               >
+                {/* Lead Score & Recommendation */}
+                {company.lead_score !== undefined && (
+                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg p-4 border border-purple-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BarChart3 className="w-5 h-5 text-purple-600" />
+                      <h4 className="font-semibold text-gray-900">Lead Intelligence</h4>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">Lead Score:</span>
+                        <span className="text-lg font-bold text-purple-700">{company.lead_score}/100</span>
+                      </div>
+                      {company.recommendation && (
+                        <div className="text-sm text-gray-700 bg-white rounded p-2">
+                          <strong>Recommendation:</strong> {company.recommendation}
+                        </div>
+                      )}
+                      {company.scoring_breakdown && (
+                        <div className="text-xs text-gray-600 space-y-1">
+                          <div className="font-semibold mb-1">Score Breakdown:</div>
+                          {Object.entries(company.scoring_breakdown).map(([key, value]) => (
+                            <div key={key} className="flex justify-between">
+                              <span className="capitalize">{key.replace('_', ' ')}:</span>
+                              <span className="font-medium">{value} pts</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Avatar Assistant */}
+                <AvatarAssistant lead={company} />
+
                 {company.website_url && (
                   <div>
                     <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Website</div>

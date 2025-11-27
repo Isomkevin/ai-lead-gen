@@ -23,8 +23,13 @@ export const API_ENDPOINTS = {
   health: '/health',
   generateLeads: '/api/v1/leads/generate',
   generateLeadsAsync: '/api/v1/leads/generate-async',
+  analyzeLeads: '/api/v1/leads/analyze',
+  generateFromWebsite: '/api/v1/leads/generate-from-website',
   jobStatus: (jobId) => `/api/v1/leads/status/${jobId}`,
   sendEmail: '/api/v1/email/send',
-  generateEmailContent: '/api/v1/email/generate-content'
+  generateEmailContent: '/api/v1/email/generate-content',
+  generateVoice: '/api/v1/avatar/generate-voice',
+  generateSummaryVoice: '/api/v1/avatar/generate-summary',
+  getVoices: '/api/v1/avatar/voices'
 }
 
